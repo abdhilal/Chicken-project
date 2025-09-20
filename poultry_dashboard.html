@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>لوحة إدارة مزرعة بيّاض - مثال تفاعلي</title>
+  <style>
+    :root{
+      --bg:#0f172a; --card:#0b1220; --muted:#9aa7c7; --accent:#3b82f6; --accent-2:#f59e0b;
+      --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box;font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif}
+    body{margin:0;background:linear-gradient(180deg,#071029 0%, #081428 60%);color:#e6eef9;}
+    .wrap{max-width:1200px;margin:24px auto;padding:18px}
+
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:700}
+    h1{font-size:18px;margin:0}
+    .sub{color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:280px 1fr;gap:18px}
+
+    /* sidebar */
+    .sidebar{background:var(--card);padding:14px;border-radius:12px}
+    .card-title{font-weight:700;margin-bottom:10px}
+    .stat{background:var(--glass);padding:10px;border-radius:8px;margin-bottom:10px}
+    .nav{display:flex;flex-direction:column;gap:6px}
+    .nav button{background:transparent;border:1px solid rgba(255,255,255,0.03);padding:10px;border-radius:8px;color:var(--muted);text-align:right;cursor:pointer}
+    .nav button.active{border-color:var(--accent);color:white}
+
+    /* main */
+    .main{display:flex;flex-direction:column;gap:12px}
+    .panel{background:var(--card);padding:12px;border-radius:12px}
+    .panel-row{display:flex;gap:12px}
+    .small{flex:1}
+    .large{flex:2}
+
+    table{width:100%;border-collapse:collapse;color:#cfe6ff;font-size:13px}
+    th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:center}
+    th{color:var(--muted);font-weight:600}
+
+    .controls{display:flex;gap:10px;align-items:center}
+    input,select{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+    button.btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+    button.primary{background:var(--accent);color:#051023}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+
+    /* responsive */
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.sidebar{order:2}}
+
+    /* small helpers */
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center}
+    .chart-wrap{height:240px}
+
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo">ف</div>
+        <div>
+          <h1>نظام متابعة مزرعة البيّاض - نموذج تجريبي</h1>
+          <div class="sub">إدخال يومي - تقارير شهرية - رسوم بيانية</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn ghost" id="btnExport">تصدير CSV</button>
+        <button class="btn primary" id="btnAdd">إضافة سجل يومي</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside class="sidebar panel">
+        <div class="card-title">معلومات الفوج</div>
+        <div class="stat">اسم الفوج: <strong id="farmName">فوج تجريبي A</strong></div>
+        <div class="stat">تاريخ بداية التربية: <strong id="startDate">2025-09-01</strong></div>
+        <div class="stat">عدد الفرخات: <strong id="chicksCount">1000</strong></div>
+
+        <div style="height:12px"></div>
+        <div class="card-title">التنقل</div>
+        <div class="nav">
+          <button class="active" data-view="dashboard">لوحة التحكم</button>
+          <button data-view="records">سجلات يومية</button>
+          <button data-view="reports">تقارير</button>
+          <button data-view="settings">إعدادات</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section id="view-dashboard" class="panel">
+          <div class="panel-row">
+            <div class="small panel">
+              <div class="card-title">إحصائيات سريعة</div>
+              <div class="muted">متوسط إنتاج يومي</div>
+              <div style="font-size:22px;font-weight:700;margin:8px 0" id="avgEggs">0</div>
+
+              <div class="muted">إجمالي العلف المستهلك</div>
+              <div id="totalFeed">0 كغ</div>
+
+              <div style="height:10px"></div>
+              <div class="muted">إجمالي المصاريف</div>
+              <div id="totalCosts">0</div>
+            </div>
+
+            <div class="large panel">
+              <div class="card-title">الانتاج الشهري (آخر 6 أشهر)</div>
+              <div class="chart-wrap"><canvas id="chartEggs"></canvas></div>
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+          <div class="panel-row">
+            <div class="panel small">
+              <div class="card-title">نسبة الإنتاج اليومي</div>
+              <div class="chart-wrap"><canvas id="chartPercent"></canvas></div>
+            </div>
+
+            <div class="panel large">
+              <div class="card-title">سجل الأيام الأخيرة</div>
+              <div style="max-height:220px;overflow:auto;margin-top:8px">
+                <table id="tableRecent">
+                  <thead><tr><th>التاريخ</th><th>عدد البيض</th><th>العلف (كغ)</th><th>مصاريف</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-records" class="panel" style="display:none">
+          <div class="card-title">السجلات اليومية</div>
+          <div style="margin:12px 0" class="row">
+            <input type="date" id="recDate" />
+            <input type="number" id="recEggs" placeholder="عدد البيض" />
+            <input type="number" id="recFeed" placeholder="العلف (كغ)" />
+            <input type="number" id="recCost" placeholder="مصاريف" />
+            <button class="btn primary" id="saveRec">حفظ</button>
+          </div>
+
+          <div style="max-height:420px;overflow:auto">
+            <table id="recordsTable">
+              <thead><tr><th>التاريخ</th><th>عمر الفوج</th><th>عدد الفرخات</th><th>عدد البيض</th><th>العلف (كغ)</th><th>مصاريف</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="view-reports" class="panel" style="display:none">
+          <div class="card-title">تقارير شهرية</div>
+          <div class="muted">اختر الفترة</div>
+          <div class="row" style="margin:8px 0">
+            <input type="month" id="monthFrom" />
+            <input type="month" id="monthTo" />
+            <button class="btn primary" id="btnReport">عرض التقرير</button>
+          </div>
+          <div id="reportArea"></div>
+        </section>
+
+        <section id="view-settings" class="panel" style="display:none">
+          <div class="card-title">الإعدادات</div>
+          <div class="row">
+            <label class="muted">اسم الفوج</label>
+            <input id="inputFarmName" />
+          </div>
+          <div style="height:8px"></div>
+          <div class="row">
+            <label class="muted">تاريخ البدء</label>
+            <input type="date" id="inputStartDate" />
+          </div>
+          <div style="height:8px"></div>
+          <div class="row">
+            <label class="muted">عدد الفرخات</label>
+            <input type="number" id="inputChicks" />
+          </div>
+          <div style="height:12px"></div>
+          <button class="btn primary" id="saveSettings">حفظ الإعدادات</button>
+        </section>
+
+        <footer></footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    /********** نموذج بيانات مبدئية **********/
+    const state = {
+      farmName: 'فوج تجريبي A',
+      startDate: '2025-09-01',
+      chicks: 1000,
+      records: [
+        // تاريخ، عدد بيض، علف (كغ)، مصاريف
+        ['2025-09-01', 800, 120, 50],
+        ['2025-09-02', 820, 118, 48],
+        ['2025-09-03', 790, 121, 60],
+        ['2025-09-04', 810, 119, 52],
+        ['2025-09-05', 830, 122, 45]
+      ]
+    }
+
+    // عناصر DOM
+    const elems = {
+      avgEggs: document.getElementById('avgEggs'),
+      totalFeed: document.getElementById('totalFeed'),
+      totalCosts: document.getElementById('totalCosts'),
+      tableRecent: document.querySelector('#tableRecent tbody'),
+      recordsTable: document.querySelector('#recordsTable tbody'),
+      farmName: document.getElementById('farmName'),
+      startDate: document.getElementById('startDate'),
+      chicksCount: document.getElementById('chicksCount')
+    }
+
+    function computeStats(){
+      const arr = state.records;
+      const totalEggs = arr.reduce((s,r)=>s+r[1],0);
+      const totalFeed = arr.reduce((s,r)=>s+r[2],0);
+      const totalCost = arr.reduce((s,r)=>s+r[3],0);
+      elems.avgEggs.innerText = Math.round(totalEggs / Math.max(1,arr.length));
+      elems.totalFeed.innerText = totalFeed + ' كغ';
+      elems.totalCosts.innerText = totalCost + ' \$';
+    }
+
+    function renderRecent(){
+      elems.tableRecent.innerHTML = '';
+      const last = state.records.slice(-6).reverse();
+      last.forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td>`;
+        elems.tableRecent.appendChild(tr);
+      })
+    }
+
+    function renderRecordsTable(){
+      document.querySelector('#recordsTable tbody').innerHTML = '';
+      state.records.forEach(r=>{
+        const tr=document.createElement('tr');
+        // تقدير عمر الفوج تقريبي
+        const days = Math.floor((new Date(r[0]) - new Date(state.startDate))/(1000*60*60*24));
+        tr.innerHTML = `<td>${r[0]}</td><td>${Math.max(0,days)}</td><td>${state.chicks}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td>`;
+        document.querySelector('#recordsTable tbody').appendChild(tr);
+      })
+    }
+
+    // رسوم بيانية
+    let chartEggs, chartPercent;
+    function renderCharts(){
+      const months = state.records.map(r=>r[0]);
+      const eggs = state.records.map(r=>r[1]);
+
+      // إتلاف إن كانت موجودة
+      if(chartEggs) chartEggs.destroy();
+      if(chartPercent) chartPercent.destroy();
+
+      const ctx1 = document.getElementById('chartEggs').getContext('2d');
+      chartEggs = new Chart(ctx1,{
+        type:'line',
+        data:{labels:months, datasets:[{label:'عدد البيض',data:eggs, tension:0.3, fill:true}]},
+        options:{plugins:{legend:{display:false}}, scales:{x:{display:false}}}
+      });
+
+      const ctx2 = document.getElementById('chartPercent').getContext('2d');
+      const percent = eggs.map(e => Math.round((e/state.chicks)*10000)/100);
+      chartPercent = new Chart(ctx2,{type:'bar',data:{labels:months,datasets:[{label:'نسبة الإنتاج',data:percent}]},options:{plugins:{legend:{display:false}}}});
+    }
+
+    // حفظ سجل جديد
+    document.getElementById('saveRec').addEventListener('click',()=>{
+      const d = document.getElementById('recDate').value;
+      const eggs = Number(document.getElementById('recEggs').value);
+      const feed = Number(document.getElementById('recFeed').value);
+      const cost = Number(document.getElementById('recCost').value);
+      if(!d || !eggs){alert('أدخل التاريخ و عدد البيض');return}
+      state.records.push([d,eggs,feed,cost]);
+      updateAll();
+    })
+
+    // إضافة سجل سريع من زر العنوان
+    document.getElementById('btnAdd').addEventListener('click',()=>{
+      // يفتح حقل التاريخ اليومي تلقائياً
+      const today = new Date().toISOString().slice(0,10);
+      document.getElementById('recDate').value = today;
+      document.getElementById('recEggs').value = '';
+      document.getElementById('recFeed').value = '';
+      document.getElementById('recCost').value = '';
+      // التغيير إلى عرض السجلات
+      setView('records');
+    })
+
+    // تصدير CSV
+    document.getElementById('btnExport').addEventListener('click',()=>{
+      const rows = [['date,eggs,feed,cost']];
+      state.records.forEach(r=>rows.push([`${r[0]},${r[1]},${r[2]},${r[3]}`]));
+      const csv = rows.map(r=>r[0]).join('\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='poultry_records.csv'; a.click(); URL.revokeObjectURL(url);
+    })
+
+    // تقرير شهري بسيط
+    document.getElementById('btnReport').addEventListener('click',()=>{
+      const from = document.getElementById('monthFrom').value;
+      const to = document.getElementById('monthTo').value;
+      if(!from || !to){alert('اختر الفترة');return}
+      // تحويل إلى تواريخ
+      const start = new Date(from + '-01');
+      const end = new Date(to + '-01'); end.setMonth(end.getMonth()+1);
+      const filtered = state.records.filter(r=>{
+        const d = new Date(r[0]);
+        return d >= start && d < end;
+      });
+      let html = `<div class="panel"><h3>نتائج التقرير</h3><p>عدد السجلات: ${filtered.length}</p>`;
+      const totalEggs = filtered.reduce((s,r)=>s+r[1],0);
+      const totalFeed = filtered.reduce((s,r)=>s+r[2],0);
+      const totalCost = filtered.reduce((s,r)=>s+r[3],0);
+      html += `<p>إجمالي البيض: <strong>${totalEggs}</strong></p><p>إجمالي العلف: <strong>${totalFeed} كغ</strong></p><p>إجمالي المصاريف: <strong>${totalCost}</strong></p></div>`;
+      document.getElementById('reportArea').innerHTML = html;
+    })
+
+    // إعدادات
+    document.getElementById('saveSettings').addEventListener('click',()=>{
+      state.farmName = document.getElementById('inputFarmName').value || state.farmName;
+      state.startDate = document.getElementById('inputStartDate').value || state.startDate;
+      state.chicks = Number(document.getElementById('inputChicks').value) || state.chicks;
+      elems.farmName.innerText = state.farmName;
+      elems.startDate.innerText = state.startDate;
+      elems.chicksCount.innerText = state.chicks;
+      updateAll();
+    })
+
+    // تبديل العرض
+    document.querySelectorAll('.nav button').forEach(b=>{
+      b.addEventListener('click',()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');setView(b.dataset.view)})
+    })
+    function setView(v){
+      document.querySelectorAll('main section').forEach(s=>s.style.display='none');
+      const el = document.getElementById('view-'+v);
+      if(el) el.style.display='block';
+    }
+
+    function updateAll(){
+      computeStats();renderRecent();renderRecordsTable();renderCharts();
+    }
+
+    // init
+    document.getElementById('inputFarmName').value = state.farmName;
+    document.getElementById('inputStartDate').value = state.startDate;
+    document.getElementById('inputChicks').value = state.chicks;
+    updateAll();
+
+  </script>
+</body>
+</html>
